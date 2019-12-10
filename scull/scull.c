@@ -33,12 +33,19 @@ struct scull_dev {
     int                  qset;        /* number of quantums in set      */
     unsigned long        size;
     struct cdev          cdev;        /* Char device structure          */
+    struct device       *dev;         /* device structure               */
 };
 
 static struct scull_dev *scull_devices;
 
 static struct class *scull_class;
 
+static ssize_t show(struct device *dev, struct device_attribute *attr, char *buffer)
+{
+    return strlen(memcpy(buffer, "hello\n", strlen("hello\n")));
+}
+
+static DEVICE_ATTR(reset, S_IRUGO, show, NULL);
 /*
  * Empty out the scull device; must be called with the device
  * semaphore held.
@@ -233,6 +240,7 @@ static void scull_cleanup_module(void)
     if (scull_devices) {
         for (i = 0; i < scull_nr_devs; i++) {
             cdev_del(&scull_devices[i].cdev);
+            device_remove_file(scull_devices[i].dev, &dev_attr_reset);
             device_destroy(scull_class, MKDEV(scull_major, scull_minor + i));
         }
         kfree(scull_devices);
@@ -256,7 +264,8 @@ static void scull_setup_cdev(struct scull_dev *dev, int index)
     if (err)
         printk(KERN_NOTICE "scull: error %d adding scull%d\n", err, index);
 
-    device_create(scull_class, NULL, devno, NULL, "scull%d", index);
+    dev->dev = device_create(scull_class, NULL, devno, NULL, "scull%d", index);
+    device_create_file(dev->dev, &dev_attr_reset);
 }
 
 static int __init scull_init_module(void)
