@@ -40,12 +40,19 @@ static struct scull_dev *scull_devices;
 
 static struct class *scull_class;
 
-static ssize_t show(struct device *dev, struct device_attribute *attr, char *buffer)
+static ssize_t device_show(struct device *dev, struct device_attribute *attr, char *buffer)
 {
-    return strlen(memcpy(buffer, "hello\n", strlen("hello\n")));
+    return strlen(memcpy(buffer, "device hello\n", strlen("device hello\n")));
 }
 
-static DEVICE_ATTR(reset, S_IRUGO, show, NULL);
+static ssize_t hello_show(struct class *class, struct class_attribute *attr, char *buffer)
+{
+    return strlen(memcpy(buffer, "class hello\n", strlen("class hello\n")));
+}
+
+static DEVICE_ATTR(hello, S_IRUGO, device_show, NULL);
+static CLASS_ATTR_RO(hello);
+
 /*
  * Empty out the scull device; must be called with the device
  * semaphore held.
@@ -240,12 +247,13 @@ static void scull_cleanup_module(void)
     if (scull_devices) {
         for (i = 0; i < scull_nr_devs; i++) {
             cdev_del(&scull_devices[i].cdev);
-            device_remove_file(scull_devices[i].dev, &dev_attr_reset);
+            device_remove_file(scull_devices[i].dev, &dev_attr_hello);
             device_destroy(scull_class, MKDEV(scull_major, scull_minor + i));
         }
         kfree(scull_devices);
     }
 
+    class_remove_file(scull_class, &class_attr_hello);
     class_destroy(scull_class);
 
     unregister_chrdev_region(devno, scull_nr_devs);
@@ -265,7 +273,7 @@ static void scull_setup_cdev(struct scull_dev *dev, int index)
         printk(KERN_NOTICE "scull: error %d adding scull%d\n", err, index);
 
     dev->dev = device_create(scull_class, NULL, devno, NULL, "scull%d", index);
-    device_create_file(dev->dev, &dev_attr_reset);
+    device_create_file(dev->dev, &dev_attr_hello);
 }
 
 static int __init scull_init_module(void)
@@ -306,6 +314,8 @@ static int __init scull_init_module(void)
         result = PTR_ERR(scull_class);
         goto free_devices;
     }
+
+    class_create_file(scull_class, &class_attr_hello);
 
     for (i = 0; i < scull_nr_devs; i++)
         scull_setup_cdev(&scull_devices[i], i);
